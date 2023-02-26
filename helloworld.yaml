@@ -1,0 +1,58 @@
+
+architecture: amd64
+
+actions:
+  - action: debootstrap
+    suite: bullseye
+    components:
+      - main
+    mirror: https://deb.debian.org/debian
+    variant: minbase
+
+  - action: apt
+    packages: [ grub-efi, systemd-sysv, linux-image-amd64, adduser, sudo, python3 ]
+
+  - action: run
+    chroot: true
+    command: echo helloworld > /etc/hostname
+
+  - action: run
+    description: Set up user
+    chroot: true
+    script: ./setup-user.sh user user
+
+  - action: overlay
+    description: Setup motd greeting
+    source: ./greeting
+
+  # Partitions for an amd64 PC:
+  - action: image-partition
+    imagename: helloworld.img
+    imagesize: 2GB
+    partitiontype: gpt
+    partitions:
+      - name: efi
+        fs: fat32
+        start: 0MB
+        end: 256MB
+        flags: [ esp ]
+      - name: root
+        fs: ext4
+        start: 256MB
+        end: 100%
+    mountpoints:
+      - mountpoint: /
+        partition: root
+      - mountpoint: /boot/efi
+        partition: efi
+
+  - action: filesystem-deploy
+    description: Deploying filesystem onto image
+
+  - action: run
+    chroot: true
+    command: grub-install --target=x86_64-efi --no-nvram --efi-directory=/boot/efi --force-extra-removable
+
+  - action: run
+    chroot: true
+    command: update-grub
